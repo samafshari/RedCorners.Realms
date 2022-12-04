@@ -16,6 +16,8 @@
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
+    <AssemblyVersion></AssemblyVersion>
+    <Version>1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

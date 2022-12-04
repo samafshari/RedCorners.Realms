@@ -152,16 +152,45 @@ namespace RedCorners
                     {
                         realm.Write(() =>
                         {
-                            var record = CreateRecord(update);
-                            realm.Add(record);
-                            result = ToModel(record);
-                            if (EnableCaching && result != null)
-                                UpdateCache(result);
+                            result = InnerAdd(update, realm);
                         });
                     }
                 });
                 return result;
             }
+        }
+
+        public async Task<List<TModel>> AddRangeAsync(List<TUpdate> updates)
+        {
+            using (GetBenchmarkService().StartBenchmark())
+            {
+                List<TModel> results = new List<TModel>(updates.Count);
+                await Task.Run(() =>
+                {
+                    using (var realm = GetRealm())
+                    {
+                        realm.Write(() =>
+                        {
+                            foreach (var update in updates)
+                            {
+                                var result = InnerAdd(update, realm);
+                                results.Add(result);
+                            }
+                        });
+                    }
+                });
+                return results;
+            }
+        }
+
+        TModel InnerAdd(TUpdate update, Realm realm)
+        {
+            var record = CreateRecord(update);
+            realm.Add(record);
+            var result = ToModel(record);
+            if (EnableCaching && result != null)
+                UpdateCache(result);
+            return result;
         }
 
         public async Task<TModel> UpdateAsync(string id, TUpdate update = default)
@@ -178,21 +207,59 @@ namespace RedCorners
                     {
                         realm.Write(() =>
                         {
-                            var record = realm.All<TRecord>()
-                                .FirstOrDefault(x => x.Id == id);
-
-                            if (record == null)
-                                throw new RecordNotFoundException($"Record {id} not found.");
-
-                            UpdateRecord(update, record);
-                            result = ToModel(record);
-                            if (EnableCaching && result != null)
-                                UpdateCache(result);
+                            result = UpdateInner(id, update, realm);
                         });
                     }
                 });
                 return result;
             }
+        }
+
+        public async Task<List<TModel>> UpdateRangeAsync(List<(string id, TUpdate update)> items)
+        {
+            using (GetBenchmarkService().StartBenchmark())
+            {
+                if (items == default)
+                    throw new ArgumentNullException(nameof(items));
+
+                List<TModel> results = new List<TModel>(items.Count);
+                await Task.Run(() =>
+                {
+                    using (var realm = GetRealm())
+                    {
+                        realm.Write(() =>
+                        {
+                            foreach (var item in items)
+                            {
+                                var id = item.id;
+                                var update = item.update;
+                                if (id == default)
+                                    throw new ArgumentNullException(nameof(id));
+
+                                var result = UpdateInner(id, update, realm);
+                                results.Add(result);
+
+                            }
+                        });
+                    }
+                });
+                return results;
+            }
+        }
+
+        TModel UpdateInner(string id, TUpdate update, Realm realm)
+        {
+            var record = realm.All<TRecord>()
+                .FirstOrDefault(x => x.Id == id);
+
+            if (record == null)
+                throw new RecordNotFoundException($"Record {id} not found.");
+
+            UpdateRecord(update, record);
+            var result = ToModel(record);
+            if (EnableCaching && result != null)
+                UpdateCache(result);
+            return result;
         }
 
         public virtual async Task<List<TModel>> GetAllAsync()
